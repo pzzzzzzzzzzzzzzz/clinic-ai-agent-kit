@@ -1,0 +1,460 @@
+{
+  "name": "Lead Qualifier — Shipped Automations",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": [
+          "POST"
+        ],
+        "path": "lead-qualifier",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000001",
+      "name": "Webhook (lead-qualifier)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -260,
+        300
+      ],
+      "webhookId": "b1000000-0000-4000-8000-000000000001"
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c1000000-0000-4000-8000-000000000001",
+              "name": "id",
+              "value": "={{ $json.id ?? 'req-' + $now.format('yyyyMMddHHmmss') }}",
+              "type": "string"
+            },
+            {
+              "id": "c1000000-0000-4000-8000-000000000002",
+              "name": "name",
+              "value": "={{ $json.name ?? '' }}",
+              "type": "string"
+            },
+            {
+              "id": "c1000000-0000-4000-8000-000000000003",
+              "name": "email",
+              "value": "={{ $json.email ?? '' }}",
+              "type": "string"
+            },
+            {
+              "id": "c1000000-0000-4000-8000-000000000004",
+              "name": "company",
+              "value": "={{ $json.company ?? '' }}",
+              "type": "string"
+            },
+            {
+              "id": "c1000000-0000-4000-8000-000000000005",
+              "name": "message",
+              "value": "={{ $json.message ?? '' }}",
+              "type": "string"
+            },
+            {
+              "id": "c1000000-0000-4000-8000-000000000006",
+              "name": "source",
+              "value": "={{ $json.source ?? 'unknown' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000002",
+      "name": "Parse input",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -40,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c2000000-0000-4000-8000-000000000001",
+              "name": "model",
+              "value": "gpt-4o-mini",
+              "type": "string"
+            },
+            {
+              "id": "c2000000-0000-4000-8000-000000000002",
+              "name": "baseUrl",
+              "value": "https://api.openai.com/v1/chat/completions",
+              "type": "string"
+            },
+            {
+              "id": "c2000000-0000-4000-8000-000000000003",
+              "name": "qualifyThreshold",
+              "value": 70,
+              "type": "number"
+            },
+            {
+              "id": "c2000000-0000-4000-8000-000000000004",
+              "name": "useJsonMode",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "c2000000-0000-4000-8000-000000000005",
+              "name": "bizName",
+              "value": "Your Clinic",
+              "type": "string"
+            },
+            {
+              "id": "c2000000-0000-4000-8000-000000000006",
+              "name": "sheetName",
+              "value": "Qualified Leads",
+              "type": "string"
+            },
+            {
+              "id": "c2000000-0000-4000-8000-000000000007",
+              "name": "deliveryWebhookUrl",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000003",
+      "name": "Config (edit me)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        180,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// ============================================================\n// PROMPT (edit me) — change the criteria and the wording here.\n// Nothing below this line needs to change when you edit this.\n// ============================================================\nconst systemPrompt = `You are a patient enquiry qualification engine for a clinic reception team.\nScore how well this enquiry should be prioritised for a callback, and decide whether it is worth\na receptionist's time today.\n\nSCORING CRITERIA (edit this node to change them):\n- The caller is a patient or potential patient, not a supplier, spam or a sales pitch\n- They described a specific treatment, appointment, symptom or price question\n- This clinic actually offers what they are asking about\n- There is enough detail to prepare before calling them back\n\nReturn STRICT JSON:\n{\n  \"score\": <0-100 integer>,\n  \"reason\": \"<one sentence explaining the score>\",\n  \"matched\": [<criteria that passed>],\n  \"missing\": [<criteria that failed>],\n  \"summary\": \"<one-line summary of what the patient needs>\"\n}`;\n\nconst userTemplate = `Score this patient enquiry for {{bizName}}.\n\nPATIENT: {{name}}\nCONTACT (phone or email): {{email}}\nCLINIC: {{company}}\nHOW THEY REACHED US: {{source}}\nWHAT THEY SAID:\n{{message}}\n\nReturn JSON only.`;\n\nreturn [{ json: { systemPrompt, userTemplate } }];\n"
+      },
+      "id": "a1000000-0000-4000-8000-000000000004",
+      "name": "Prompt (edit me)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Builds the API request. Contains NO prompt text and NO thresholds.\nconst config = $('Config (edit me)').first().json;\nconst prompt = $('Prompt (edit me)').first().json;\n\nconst out = [];\nfor (const item of $input.all()) {\n  const src = item.json;\n  const userContent = prompt.userTemplate\n    .replace('{{bizName}}', config.bizName || 'the business')\n    .replace('{{name}}', src.name || '')\n    .replace('{{email}}', src.email || '')\n    .replace('{{company}}', src.company || '')\n    .replace('{{source}}', src.source || '')\n    .replace('{{message}}', src.message || '');\n\n  const body = {\n    model: config.model,\n    temperature: 0,\n    messages: [\n      { role: 'system', content: prompt.systemPrompt },\n      { role: 'user', content: userContent }\n    ]\n  };\n  if (config.useJsonMode !== false) {\n    body.response_format = { type: 'json_object' };\n  }\n\n  out.push({ json: body });\n}\n\nreturn out;\n"
+      },
+      "id": "a1000000-0000-4000-8000-000000000005",
+      "name": "Build request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        620,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config (edit me)').first().json.baseUrl }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000006",
+      "name": "Call model",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        840,
+        300
+      ],
+      "onError": "continueRegularOutput",
+      "retryOnFail": false,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "e1000000-0000-4000-8000-000000000001",
+          "name": "OpenAI API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Never throws. A malformed model reply degrades to status 'error'.\nconst orig = $('Parse input').first().json;\nconst out = [];\n\nfor (const item of $input.all()) {\n  const src = item.json;\n  const body = (src && src.body !== undefined && src.body !== null) ? src.body : src;\n\n  let text = '';\n  if (body && typeof body === 'object' && Array.isArray(body.choices) && body.choices[0]) {\n    text = body.choices[0].message?.content ?? '';\n  } else if (typeof body === 'string') {\n    text = body;\n  } else if (body && typeof body.content === 'string') {\n    text = body.content;\n  } else if (body && typeof body.output === 'string') {\n    text = body.output;\n  }\n\n  let parsed = null;\n  let parseError = '';\n  try {\n    const t = String(text || '').trim();\n    if (!t) throw new Error('empty model response');\n    parsed = JSON.parse(t);\n    if (!parsed || typeof parsed !== 'object') throw new Error('response was not an object');\n  } catch (e) {\n    parsed = null;\n    parseError = (e && e.message) ? e.message : String(e);\n  }\n\n  if (!parsed) {\n    out.push({\n      json: {\n        id: orig.id,\n        score: 0,\n        reason: 'Could not read a JSON score from the model. Check the API key, the endpoint URL, and the model name in Config.',\n        matched: [],\n        missing: ['parse_error'],\n        summary: '',\n        status: 'error',\n        error: parseError,\n        raw_excerpt: String(text || '').slice(0, 300)\n      }\n    });\n    continue;\n  }\n\n  const numeric = Number(parsed.score);\n  const score = Number.isFinite(numeric) ? Math.max(0, Math.min(100, numeric)) : 0;\n\n  out.push({\n    json: {\n      id: orig.id,\n      name: orig.name,\n      email: orig.email,\n      company: orig.company,\n      source: orig.source,\n      score,\n      reason: parsed.reason ?? '',\n      matched: Array.isArray(parsed.matched) ? parsed.matched : [],\n      missing: Array.isArray(parsed.missing) ? parsed.missing : [],\n      summary: parsed.summary ?? '',\n      status: 'scored'\n    }\n  });\n}\n\nreturn out;\n"
+      },
+      "id": "a1000000-0000-4000-8000-000000000007",
+      "name": "Parse response (safe)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1060,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "d1000000-0000-4000-8000-000000000001",
+              "leftValue": "={{ $json.score }}",
+              "rightValue": "={{ $('Config (edit me)').first().json.qualifyThreshold }}",
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000008",
+      "name": "Qualified",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1280,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config (edit me)').first().json.deliveryWebhookUrl || 'https://example.invalid/noop' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ id: $json.id, name: $json.name, email: $json.email, company: $json.company, score: $json.score, reason: $json.reason, summary: $json.summary, matched: $json.matched, sheet: $('Config (edit me)').first().json.sheetName }) }}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000009",
+      "name": "Push qualified lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1500,
+        200
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const p = $('Parse response (safe)').first().json;\nreturn [{ json: { ...p, status: 'qualified' } }];\n"
+      },
+      "id": "a1000000-0000-4000-8000-000000000010",
+      "name": "Mark qualified",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1720,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e1000000-0000-4000-8000-000000000001",
+              "name": "status",
+              "value": "disqualified",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000011",
+      "name": "Mark disqualified",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1500,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "responseCode": 200,
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000012",
+      "name": "Respond to webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1940,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook (lead-qualifier)": {
+      "main": [
+        [
+          {
+            "node": "Parse input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse input": {
+      "main": [
+        [
+          {
+            "node": "Config (edit me)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config (edit me)": {
+      "main": [
+        [
+          {
+            "node": "Prompt (edit me)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prompt (edit me)": {
+      "main": [
+        [
+          {
+            "node": "Build request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build request": {
+      "main": [
+        [
+          {
+            "node": "Call model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call model": {
+      "main": [
+        [
+          {
+            "node": "Parse response (safe)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse response (safe)": {
+      "main": [
+        [
+          {
+            "node": "Qualified",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qualified": {
+      "main": [
+        [
+          {
+            "node": "Push qualified lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark disqualified",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Push qualified lead": {
+      "main": [
+        [
+          {
+            "node": "Mark qualified",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark qualified": {
+      "main": [
+        [
+          {
+            "node": "Respond to webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark disqualified": {
+      "main": [
+        [
+          {
+            "node": "Respond to webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "versionId": "f1000000-0000-4000-8000-000000000001",
+  "meta": {
+    "instanceId": "shipped-automations-free-sample"
+  },
+  "id": "f1000000-0000-4000-8000-000000000001",
+  "tags": []
+}
