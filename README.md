@@ -3,6 +3,11 @@
 Three complete n8n workflows you can import and run today. Every prompt and threshold is an
 editable node — nothing is hardcoded inside a script.
 
+> **Verified on n8n 2.46.4** — all three files were imported into a real n8n instance and exported
+> back out; node names, node types, type versions and every connection matched the source exactly.
+> If your n8n is older than 2.46, the import will still work, but check the *Config* node's
+> `baseUrl`/`model` defaults once you have it open.
+
 | # | Workflow | File | What it does |
 |---|---|---|---|
 | 1 | **Lead Qualifier** | `01-lead-qualifier.json` | Scores an inbound enquiry against criteria you set, routes qualified leads to your sheet/CRM, and tells you *why* it scored that way |
@@ -19,8 +24,7 @@ editable node — nothing is hardcoded inside a script.
 
 ### Steps
 1. **Import.** In n8n: *Workflows → Import from File* → pick `01-lead-qualifier.json` (repeat for the other two).
-   *Or* import the single package `shipped-automations.n8np` if you have it — it contains all three and
-   runs a pre-flight check before import, so a broken file tells you immediately instead of half-way.
+   Import all three — each one is standalone and takes a couple of seconds.
 2. **Add your API key.** Open the *Call model* node → Credentials → create a new **Header Auth** credential:
    - Name: `Authorization`
    - Value: `Bearer sk-...`
